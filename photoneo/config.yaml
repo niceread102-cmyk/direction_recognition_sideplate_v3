@@ -1,0 +1,100 @@
+# ===================== side_plate 빨간 홈 방향 맞추기 설정 (Photoneo 2D) =====================
+# 알고리즘 설정은 ../config.yaml 과 같다. 카메라/보정 파일/서버만 다르다.
+#
+# [각도 규약]  "위에서 내려다본 모습" 기준, 원판 중심에서 시계방향이 +
+#   0° = 화면 위(12시, 카메라 반대쪽)   90° = 화면 오른쪽(3시)
+#   180° = 화면 아래(6시, 카메라 쪽)    270° = 화면 왼쪽(9시)
+angles:
+  zero_at: top            # top : 12시 = 0° (기본) | right : 3시 = 0°
+
+# ---- 목표 자세 ----
+# 빨간 홈(바닥 테두리의 작은 홈) 두 개가 notch_axis_deg 와 그 +180° 에 오고,
+# 빨간 홈 선으로 나눈 두 반쪽 중 "문양 있는 쪽"이 pattern_side 쪽에 오도록 돌린다.
+target:
+  notch_axis_deg: 0       # 0 이면 홈 하나는 0°(위), 다른 하나는 180°(아래)
+  pattern_side: left      # left : 문양 쪽이 왼쪽(270°) | right : 오른쪽(90°)
+                          #   (notch_axis_deg 가 0 이 아니면 left = 홈 축에서 반시계 90° 쪽)
+
+# ---- STL (형상 기준) ----
+stl:
+  file: ../SIDE-PLATE-BP.stl  # 이 파일(photoneo/config.yaml) 기준 경로
+  edge_min_dihedral_deg: 30   # 이 각도보다 꺾인 모서리만 맞추기에 사용
+  edge_step_mm: 0.35          # 모서리 점 간격
+  notch_max_width_deg: 25     # 바닥 테두리에서 이보다 좁게 파인 곳을 "홈" 후보로 봄
+  notch_angle_deg: 215        # 빨간 홈 A (모델 각도, B 는 +180° = 35° 로 자동). 이 STL 에는 좁은 홈 쌍이 둘 있다:
+                              #   35°/215°      (폭 8°, 긴 홀에서 반시계 쪽 +12.6°)  ← 실제 빨간 홈 (2026-11-12 확인:
+                              #                  168.5 로 두면 A, B 둘 다 실제보다 화면에서 약 +50° 어긋남)
+                              #   168.5°/348.5° (폭 3°, 긴 홀에서 시계 쪽 -33.9°)
+                              # null 이면 둘 중 하나를 자동으로 고르게 되어 위험하므로 오류로 멈춘다
+
+# ---- 카메라 (Photoneo PhoXi 3D Scanner Gen3 (M) 를 2D 로, photoneo/pho.py) ----
+camera:
+  serial: auto            # auto: 처음 찾은 Photoneo | 시리얼 (예: PAJ-042)
+  source: primary         # primary : 3D 카메라(흑백 2472x2064, 12비트) + LED 조명
+                          # color   : 컬러 카메라 (color_resolution)
+  camera_only: true       # true: 패턴 투사 없이 2D 만 (한 장 약 0.2 s) | false: 3D 스캔과 같이 (약 0.7 s)
+  texture_source: LED     # primary 일 때 조명: LED | Laser | LaserEnhanced
+  color_resolution: Resolution_3864x2192   # Resolution_3864x2192 | _2576x1460 | _1932x1096 | _1288x730
+  led_power: 4095         # LED 밝기 (0~4095)
+  exposure_ms: 40.96      # 3D 카메라 노출(SinglePatternExposure, ms). 기본 10.24 는 너무 어둡다 (부품 밝기 약 43/255)
+                          #   40.96 이면 한 장 시간은 그대로(약 0.2 s), 79.87 이상은 부품 반사가 포화
+  color_exposure_ms: null # 컬러 카메라 노출(ms). null 이면 기본값
+  color_iso: null         # 컬러 카메라 ISO. null 이면 기본값
+  intensity_gain: 1.4     # 12비트 → 8비트로 바꿀 때 곱하는 값 (40.96 ms 에서 부품 약 55~230/255). 255 넘으면 잘림
+  average_frames: 1       # 여러 장 평균 (노이즈 감소, 1장 늘 때마다 약 0.2 s)
+  rotate: 180             # 화면 위쪽 = 0° 가 되도록 돌리기 (0/90/180/270). 지금은 카메라가 거꾸로 달려 180
+  roi: [738, 980, 640, 640]   # [x, y, w, h] 돌린 영상(2472x2064)에서 부품 주변만 잘라 쓰기. null 이면 전체
+                              #   ROI 정하기: python3 photoneo/pho.py grab full.png --raw
+  upscale: 5.0            # 잘라낸 영상 키우기. 원판 반지름 약 111 px → 약 555 px (측정 설정은 약 600 px 기준)
+  timeout_s: 10
+  settle_s: 0.5           # 설정 직후 기다리는 시간
+  load_default_user_set: true
+
+# ---- 상주 서버 (photoneo/server.py) ----
+server:
+  host: 127.0.0.1
+  port: 5577
+
+# ---- 보정 파일 (calibrate.py 가 만든다) ----
+calibration:
+  file: calib.yaml        # photoneo/calib.yaml (Hikvision 보정과 따로)
+
+# ---- STL 맞추기 (부품 각도/중심 찾기) ----
+matching:
+  center_search_px: 60    # 보정 중심에서 부품 중심이 이만큼(px)까지 벗어나도 찾는다
+  coarse_step_deg: 2.0    # 거친 탐색 각도 간격
+  scale_search: 0.0       # 크기 배율 탐색 범위. Photoneo 는 바로 위 고정 높이라 크기가 보정으로 정해져 0 (고정)
+                          #   0.03 으로 두면 다듬기 단계에서 배율이 제한 없이 커져, 부품 그림자 테두리에 맞춰
+                          #   1.09 배까지 늘어나고 홈 위치 그림이 테두리 밖으로 밀려났다 (2026-11-12)
+  min_peak_ratio: 1.08    # 최고점이 다른 각도보다 이 배 이상 높아야 "각도 확실"
+  candidates: 6           # 거친 탐색 상위 후보 수 (각각 다듬어 가장 좋은 것을 고름)
+  locate_part: true       # (Photoneo 서버) 측정 전에 부품 위치를 먼저 찾는다. 부품을 보정 때와 다른 자리에 놓아도 된다
+                          #   원판 테두리(원 모양 경계)가 뚜렷한 자리만 후보로 써서, 각도기 눈금 같은 무늬에 속지 않는다
+
+# ---- 문양 쪽 판정 (빨간 홈 선으로 나눈 두 반쪽 비교) ----
+decision:
+  method: reference       # reference : 기준 사진 비교 (photoneo/pattern_ref.py). 윗면을 펼친 띠 영상이 기준과
+                          #             그대로 닮았나 / 180° 뒤집어 닮았나로 고른다. 문양 모양 전체를 써서 확실하다
+                          #             (자세가 다른 사진끼리 닮음 0.23 대 0.06). 기준이 없으면 반쪽 비교로 한다
+                          # halves    : 반쪽 평균값 비교 (아래 feature/region). Photoneo 영상에서는 차가 3~9% 로 약해
+                          #             자세에 따라 틀렸다 (images.test.jpg, 2026-11-12)
+  reference_file: pattern_ref.npz      # 만들기: python3 photoneo/calibrate_pho.py pattern-ref
+  reference_min_margin: 0.08           # 두 닮음의 차가 이보다 작으면 low_confidence (시험한 최소 차 0.165 의 절반)
+  feature: line_ratio     # line_ratio   : 가는 어두운 선(각인) 세기 ÷ 주변 밝기  (기본, 조명 세기에 덜 민감)
+                          # edge_ratio   : 밝기 경계 세기 ÷ 주변 밝기
+                          # rgb_sum      : 픽셀 R+G+B 평균 (흑백 카메라는 밝기 x3). 조명 치우침에 약해 기준선(--fit-baseline) 필요
+                          # edge_density : 밝기 경계 세기
+  region: half            # half         : 반쪽 전체 비교
+                          # pattern_zone : 반쪽 안에서 문양 자리(STL 문양 위치 ±zone_width/2)와 그 맞은편만 비교 (차이가 더 큼)
+  zone_width_deg: 90
+  radius_band: [0.55, 0.95]   # 비교에 쓰는 고리 (원판 반지름 = 1). 가운데 허브/바깥 테두리 제외
+  min_margin: 0.04        # |문양쪽 - 반대쪽| / (합) 이 이보다 작으면 low_confidence
+  use_stl_pattern_check: false  # STL 문양 모서리와도 맞춰 보고, 판정과 다르면 low_confidence.
+                                #   Photoneo 에서는 자세에 따라 이 확인 자체가 틀려(맞는 판정도 불확실로 만들거나,
+                                #   틀린 판정과 같이 틀림) 끈다
+
+# ---- 출력 ----
+output:
+  rotate_sign: 1          # 스테이지 + 방향이 시계방향이 아니면 -1
+  wrap: shortest          # shortest: -180~180 중 가까운 쪽 / cw: 0~360 (시계방향으로만)
+  tolerance_deg: 0.5      # 이 이내면 within_tolerance = true

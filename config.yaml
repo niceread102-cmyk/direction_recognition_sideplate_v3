@@ -1,0 +1,70 @@
+# ===================== side_plate 빨간 홈 방향 맞추기 설정 (Hikvision 흑백 카메라) =====================
+#
+# [각도 규약]  "위에서 내려다본 모습" 기준, 원판 중심에서 시계방향이 +
+#   0° = 화면 위(12시, 카메라 반대쪽)   90° = 화면 오른쪽(3시)
+#   180° = 화면 아래(6시, 카메라 쪽)    270° = 화면 왼쪽(9시)
+angles:
+  zero_at: top            # top : 12시 = 0° (기본) | right : 3시 = 0°
+
+# ---- 목표 자세 ----
+# 빨간 홈(바닥 테두리의 작은 홈) 두 개가 notch_axis_deg 와 그 +180° 에 오고,
+# 빨간 홈 선으로 나눈 두 반쪽 중 "문양 있는 쪽"이 pattern_side 쪽에 오도록 돌린다.
+target:
+  notch_axis_deg: 0       # 0 이면 홈 하나는 0°(위), 다른 하나는 180°(아래)
+  pattern_side: left      # left : 문양 쪽이 왼쪽(270°) | right : 오른쪽(90°)
+                          #   (notch_axis_deg 가 0 이 아니면 left = 홈 축에서 반시계 90° 쪽)
+
+# ---- STL (형상 기준) ----
+stl:
+  file: SIDE-PLATE-BP.stl # 이 폴더 기준 경로
+  edge_min_dihedral_deg: 30   # 이 각도보다 꺾인 모서리만 맞추기에 사용
+  edge_step_mm: 0.35          # 모서리 점 간격
+  notch_max_width_deg: 25     # 바닥 테두리에서 이보다 좁게 파인 곳을 "홈" 후보로 봄
+  notch_angle_deg: 168.5      # 빨간 홈 (모델 각도, 반대쪽은 +180° 로 자동). 이 STL 에는 좁은 홈 쌍이 둘 있다:
+                              #   168.5°/348.5° (폭 3°, 긴 홀에서 시계 쪽 -33.9°)  ← 현재 실제 빨간 홈
+                              #   35°/215°      (폭 8°, 긴 홀에서 반시계 쪽 +12.6°)
+                              # null 이면 둘 중 하나를 자동으로 고르게 되어 위험하므로 오류로 멈춘다
+
+# ---- 카메라 (Hikvision MV-CH120-10GM, 12MP 흑백 GigE, 4096x3000) ----
+camera:
+  sdk_path: auto          # auto: /opt/MVS
+  serial: auto            # auto: 처음 찾은 카메라 | 시리얼 번호 (예: DB2522123)
+  pixel_format: Mono8     # Mono8 | Mono10 | Mono12
+  exposure_us: 20000      # 노출 시간(µs). 금속 면이 하얗게 포화(255)되지 않게. null 이면 카메라 현재 값
+  gain_db: 0              # 게인(dB). null 이면 현재 값
+  gamma: null             # 예) 0.7. null 이면 카메라 설정 유지
+  roi: null               # [x, y, w, h] 카메라에서 잘라 받기. 바꾸면 다시 보정
+  timeout_ms: 3000
+  warmup_frames: 3        # 시작 직후 버리는 프레임
+  average_frames: 5       # 여러 장 평균으로 노이즈 감소
+
+# ---- 보정 파일 (calibrate.py 가 만든다) ----
+calibration:
+  file: hik/calib.yaml   # (2026-11-12 hik/ 로 옮김)
+
+# ---- STL 맞추기 (부품 각도/중심 찾기) ----
+matching:
+  center_search_px: 60    # 보정 중심에서 부품 중심이 이만큼(px)까지 벗어나도 찾는다
+  coarse_step_deg: 2.0    # 거친 탐색 각도 간격
+  scale_search: 0.03      # 크기 배율 탐색 범위 (±3%)
+  min_peak_ratio: 1.08    # 최고점이 다른 각도보다 이 배 이상 높아야 "각도 확실"
+  candidates: 6           # 거친 탐색 상위 후보 수 (각각 다듬어 가장 좋은 것을 고름)
+
+# ---- 문양 쪽 판정 (빨간 홈 선으로 나눈 두 반쪽 비교) ----
+decision:
+  feature: line_ratio     # line_ratio   : 가는 어두운 선(각인) 세기 ÷ 주변 밝기  (기본, 조명 세기에 덜 민감)
+                          # edge_ratio   : 밝기 경계 세기 ÷ 주변 밝기
+                          # rgb_sum      : 픽셀 R+G+B 평균 (흑백 카메라는 밝기 x3). 조명 치우침에 약해 기준선(--fit-baseline) 필요
+                          # edge_density : 밝기 경계 세기
+  region: half            # half         : 반쪽 전체 비교
+                          # pattern_zone : 반쪽 안에서 문양 자리(STL 문양 위치 ±zone_width/2)와 그 맞은편만 비교 (차이가 더 큼)
+  zone_width_deg: 90
+  radius_band: [0.55, 0.95]   # 비교에 쓰는 고리 (원판 반지름 = 1). 가운데 허브/바깥 테두리 제외
+  min_margin: 0.04        # |문양쪽 - 반대쪽| / (합) 이 이보다 작으면 low_confidence
+  use_stl_pattern_check: true   # STL 문양 모서리와도 맞춰 보고, 반쪽 비교와 다르면 low_confidence
+
+# ---- 출력 ----
+output:
+  rotate_sign: 1          # 스테이지 + 방향이 시계방향이 아니면 -1
+  wrap: shortest          # shortest: -180~180 중 가까운 쪽 / cw: 0~360 (시계방향으로만)
+  tolerance_deg: 0.5      # 이 이내면 within_tolerance = true

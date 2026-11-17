@@ -1,0 +1,17 @@
+cx: 1725.036
+cy: 1314.268
+a: 561.6000000000001
+b: 561.6000000000001
+phi_deg: 0.0
+image_size:
+- 3200
+- 3200
+camera_elevation_deg: 90.0
+rim_edge: 27.3
+rim_contrast: 76.3
+stl_score: 0.4684
+stl_peak_ratio: 1.507
+source: 테두리 자동 (원)
+camera: photoneo:PAJ-042:primary:rot=180:roi=738,980,640,640:up=5
+frame_offset_deg: -1.3081
+frame_source: 각도기 점 11개 (잔차 7.2px, 축비 0.9787)
